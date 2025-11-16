@@ -4,7 +4,6 @@ import 'package:permission_handler/permission_handler.dart';
 class ScreenshotService {
   static const platform = MethodChannel('com.yourapp/screenshot');
 
-  // Callbacks
   Function(String imagePath)? onScreenshotCaptured;
   Function(String imagePath)? onScreenshotFailed;
   Function()? onServiceStopped;
@@ -13,7 +12,7 @@ class ScreenshotService {
     platform.setMethodCallHandler(_handleMethod);
   }
 
-  Future _handleMethod(MethodCall call) async {
+  Future<void> _handleMethod(MethodCall call) async {
     switch (call.method) {
       case 'onScreenshotCaptured':
         onScreenshotCaptured?.call(call.arguments as String);
@@ -24,17 +23,29 @@ class ScreenshotService {
       case 'onServiceStopped':
         onServiceStopped?.call();
         break;
+      case 'requestNewPermission': // ✅ NEW
+        await _requestNewPermissionForScreenshot();
+        break;
     }
   }
 
-  Future checkPermissions() async {
-    // Check overlay permission
+  // ✅ Request new permission and auto-capture
+  Future<void> _requestNewPermissionForScreenshot() async {
+    try {
+      final result = await platform.invokeMethod('requestMediaProjection');
+      // Permission dialog will show, and after approval,
+      // MainActivity will trigger the screenshot automatically
+    } catch (e) {
+      print('Error requesting new permission: $e');
+    }
+  }
+
+  Future<bool> checkPermissions() async {
     if (!await Permission.systemAlertWindow.isGranted) {
       final status = await Permission.systemAlertWindow.request();
       if (!status.isGranted) return false;
     }
 
-    // Check notification permission (Android 13+)
     if (!await Permission.notification.isGranted) {
       await Permission.notification.request();
     }
@@ -42,7 +53,7 @@ class ScreenshotService {
     return true;
   }
 
-  Future requestMediaProjection() async {
+  Future<bool> requestMediaProjection() async {
     try {
       final result = await platform.invokeMethod('requestMediaProjection');
       return result as bool;
@@ -52,7 +63,7 @@ class ScreenshotService {
     }
   }
 
-  Future startService() async {
+  Future<void> startService() async {
     try {
       await platform.invokeMethod('startService');
     } catch (e) {
@@ -60,7 +71,7 @@ class ScreenshotService {
     }
   }
 
-  Future stopService() async {
+  Future<void> stopService() async {
     try {
       await platform.invokeMethod('stopService');
     } catch (e) {
@@ -68,7 +79,7 @@ class ScreenshotService {
     }
   }
 
-  Future updateSuccessCount() async {
+  Future<void> updateSuccessCount() async {
     try {
       await platform.invokeMethod('updateSuccess');
     } catch (e) {
@@ -76,23 +87,11 @@ class ScreenshotService {
     }
   }
 
-  Future updateFailedCount() async {
+  Future<void> updateFailedCount() async {
     try {
       await platform.invokeMethod('updateFailed');
     } catch (e) {
       print('Error updating failed count: $e');
-    }
-  }
-
-  Future<void> requestNewScreenshot() async {
-    try {
-      // Request new permission before each screenshot
-      final result = await platform.invokeMethod('requestNewScreenshot');
-      if (!result) {
-        print('User cancelled screenshot permission');
-      }
-    } catch (e) {
-      print('Error requesting new screenshot: $e');
     }
   }
 }
