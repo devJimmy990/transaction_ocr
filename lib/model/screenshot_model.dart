@@ -1,33 +1,11 @@
-import 'package:hive/hive.dart';
+enum ScreenshotStatus { success, failed }
 
-part 'screenshot_model.g.dart';
-
-@HiveType(typeId: 0)
-enum ScreenshotStatus {
-  @HiveField(0)
-  success,
-  @HiveField(1)
-  failed,
-}
-
-@HiveType(typeId: 1)
-class ScreenshotModel extends HiveObject {
-  @HiveField(0)
+class ScreenshotModel {
   final String id;
-
-  @HiveField(1)
-  final String? imagePath; // null if success and deleted
-
-  @HiveField(2)
+  final String? imagePath;
   final String? extractedText;
-
-  @HiveField(3)
   final DateTime timestamp;
-
-  @HiveField(4)
   final ScreenshotStatus status;
-
-  @HiveField(5)
   final String? errorMessage;
 
   ScreenshotModel({
@@ -38,4 +16,29 @@ class ScreenshotModel extends HiveObject {
     required this.status,
     this.errorMessage,
   });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'imagePath': imagePath,
+    'extractedText': extractedText,
+    'timestamp': timestamp.millisecondsSinceEpoch,
+    'status': status == ScreenshotStatus.success ? 0 : 1,
+    'errorMessage': errorMessage,
+  };
+
+  factory ScreenshotModel.fromJson(Map<String, dynamic> map) => ScreenshotModel(
+    id: map['id'] as String,
+    imagePath: map['imagePath'] as String?,
+    extractedText: map['extractedText'] as String?,
+    timestamp: DateTime.fromMillisecondsSinceEpoch(map['timestamp'] as int),
+    status:
+        (map['status'] as int) == 0
+            ? ScreenshotStatus.success
+            : ScreenshotStatus.failed,
+    errorMessage: map['errorMessage'] as String?,
+  );
+
+  @override
+  String toString() =>
+      'ScreenshotModel(id: $id, status: $status, path: $imagePath)';
 }
