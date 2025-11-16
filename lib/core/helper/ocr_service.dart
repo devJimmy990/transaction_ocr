@@ -8,8 +8,8 @@ import 'package:path_provider/path_provider.dart';
 class OcrService {
   static Future<
     ({
+      int type,
       int amount,
-      String type,
       String name,
       String date,
       String phone,
@@ -208,18 +208,18 @@ class OcrService {
 }
 
 class _OcrParser {
-  static String extractType(String text) {
+  static int extractType(String text) {
     if (text.contains("ستقبال")) {
-      return "إستقبال";
+      return 1;
     } else if (text.contains("رسال")) {
-      return "إرسال";
+      return 0;
     }
-    return "إستقبال";
+    return 1;
   }
 
   static ({
     String name,
-    String type,
+    int type,
     String date,
     String phone,
     int amount,
@@ -244,7 +244,7 @@ class _OcrParser {
     String phone = '';
     String reference = '';
     String date = "";
-    String type = extractType(arabicLines.join(','));
+    int type = extractType(arabicLines.join(','));
 
     // Extract name prioritizing Arabic text, fallback to English
     final namePattern = RegExp(r'^[\p{Letter}\s]+$', unicode: true);
