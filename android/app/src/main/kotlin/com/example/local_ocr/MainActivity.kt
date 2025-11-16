@@ -3,50 +3,47 @@ package com.example.local_ocr
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.graphics.Bitmap
-import android.graphics.PixelFormat
-import android.hardware.display.DisplayManager
-import android.hardware.display.VirtualDisplay
-import android.media.Image
-import android.media.ImageReader
-import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
-import java.io.File
-import java.io.FileOutputStream
-import java.nio.ByteBuffer
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "screenshot_channel"
     private val REQUEST_CODE = 1000
 
     private var methodChannel: MethodChannel? = null
-    private var mediaProjection: MediaProjection? = null
-    private var resultCode: Int = 0
-    private var resultData: Intent? = null
+    private var pendingResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        
+        // إعطاء الـ Service إمكانية التواصل مع Flutter
+        ScreenshotForegroundService.setMethodChannel(methodChannel!!)
+        
         methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "requestMediaProjection" -> {
+                    pendingResult = result
                     requestScreenCapturePermission()
+                }
+                "startService" -> {
+                    result.success(ScreenshotForegroundService.isRunning())
+                }
+                "stopService" -> {
+                    stopScreenshotService()
                     result.success(true)
                 }
                 "takeScreenshot" -> {
-                    if (resultData != null) {
-                        captureScreen(result)
-                    } else {
-                        result.error("NO_PERMISSION", "Screen capture not permitted", null)
-                    }
+                    requestScreenshot()
+                    result.success(true)
+                }
+                "isServiceRunning" -> {
+                    result.success(ScreenshotForegroundService.isRunning())
                 }
                 else -> result.notImplemented()
             }
@@ -60,72 +57,43 @@ class MainActivity : FlutterActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
-            this.resultCode = resultCode
-            this.resultData = data
-        }
-    }
-
-    private fun captureScreen(result: MethodChannel.Result) {
-        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        mediaProjection = projectionManager.getMediaProjection(resultCode, resultData!!)
-
-        val metrics = resources.displayMetrics
-        val width = metrics.widthPixels
-        val height = metrics.heightPixels
-        val density = metrics.densityDpi
-
-        val imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
-
-        val virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "Screenshot",
-            width, height, density,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader.surface, null, null
-        )
-
-        Handler(Looper.getMainLooper()).postDelayed({
-            val image = imageReader.acquireLatestImage()
-            if (image != null) {
-                val path = saveImage(image, width, height)
-                image.close()
-                virtualDisplay?.release()
-                imageReader.close()
-                mediaProjection?.stop()
-                result.success(path)
+        
+        if (requestCode == REQUEST_CODE) {
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                startScreenshotService(resultCode, data)
+                pendingResult?.success(true)
             } else {
-                result.error("CAPTURE_FAILED", "Failed to capture", null)
+                pendingResult?.success(false)
             }
-        }, 100)
+            pendingResult = null
+        }
     }
 
-    private fun saveImage(image: Image, width: Int, height: Int): String {
-        val planes = image.planes
-        val buffer = planes[0].buffer
-        val pixelStride = planes[0].pixelStride
-        val rowStride = planes[0].rowStride
-        val rowPadding = rowStride - pixelStride * width
-
-        val bitmap = Bitmap.createBitmap(
-            width + rowPadding / pixelStride,
-            height,
-            Bitmap.Config.ARGB_8888
-        )
-        bitmap.copyPixelsFromBuffer(buffer)
-
-        val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
-
-        val dir = File(cacheDir, "screenshots")
-        if (!dir.exists()) dir.mkdirs()
-
-        val file = File(dir, "screenshot_${System.currentTimeMillis()}.png")
-        FileOutputStream(file).use {
-            croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+    private fun startScreenshotService(resultCode: Int, data: Intent) {
+        val serviceIntent = Intent(this, ScreenshotForegroundService::class.java).apply {
+            action = "START_SERVICE"
+            putExtra("resultCode", resultCode)
+            putExtra("resultData", data)
         }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+    }
 
-        bitmap.recycle()
-        croppedBitmap.recycle()
+    private fun stopScreenshotService() {
+        val serviceIntent = Intent(this, ScreenshotForegroundService::class.java).apply {
+            action = "STOP_SERVICE"
+        }
+        startService(serviceIntent)
+    }
 
-        return file.absolutePath
+    private fun requestScreenshot() {
+        val serviceIntent = Intent(this, ScreenshotForegroundService::class.java).apply {
+            action = "TAKE_SCREENSHOT"
+        }
+        startService(serviceIntent)
     }
 }
