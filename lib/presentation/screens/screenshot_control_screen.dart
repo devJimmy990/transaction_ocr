@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
-import 'package:local_ocr/core/service_locator.dart';
+import 'package:local_ocr/core/helper/service_locator.dart';
 import 'package:local_ocr/cubit/screenshot/screenshot_cubit.dart';
 import 'package:local_ocr/cubit/screenshot/screenshot_state.dart';
-import 'package:local_ocr/cubit/transaction_ocr/transaction_ocr_cubit.dart';
-import 'package:local_ocr/presentation/screens/transactions_ocr_screen.dart';
+import 'package:local_ocr/cubit/transaction_ocr/transaction_cubit.dart';
+import 'package:local_ocr/presentation/screens/transactions_screen.dart';
 
 class ScreenshotControlScreen extends StatelessWidget {
   const ScreenshotControlScreen({super.key});
@@ -26,8 +26,8 @@ class ScreenshotControlScreen extends StatelessWidget {
                   MaterialPageRoute(
                     builder:
                         (_) => BlocProvider.value(
-                          value: sl<TransactionOcrCubit>(),
-                          child: const TransactionsOcrScreen(),
+                          value: sl<TransactionCubit>(),
+                          child: const TransactionsScreen(),
                         ),
                   ),
                 );
@@ -130,7 +130,7 @@ class ScreenshotControlScreen extends StatelessWidget {
 
                     const SizedBox(height: 16),
 
-                    BlocBuilder<TransactionOcrCubit, dynamic>(
+                    BlocBuilder<TransactionCubit, dynamic>(
                       builder: (context, ocrState) {
                         return Card(
                           elevation: 4,
@@ -311,8 +311,8 @@ class ScreenshotControlScreen extends StatelessWidget {
                           MaterialPageRoute(
                             builder:
                                 (_) => BlocProvider.value(
-                                  value: sl<TransactionOcrCubit>(),
-                                  child: const TransactionsOcrScreen(),
+                                  value: sl<TransactionCubit>(),
+                                  child: const TransactionsScreen(),
                                 ),
                           ),
                         );
@@ -381,19 +381,19 @@ class ScreenshotControlScreen extends StatelessWidget {
   }
 }
 
-Widget _buildCounter(String label, int count, Color color) {
-  return CircleAvatar(
-    radius: 10,
-    backgroundColor: color,
-    child: Center(
-      child: Text(
-        '$count',
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 14,
-        ),
-      ),
-    ),
-  );
-}
+// Widget _buildCounter(String label, int count, Color color) {
+//   return CircleAvatar(
+//     radius: 10,
+//     backgroundColor: color,
+//     child: Center(
+//       child: Text(
+//         '$count',
+//         style: const TextStyle(
+//           color: Colors.white,
+//           fontWeight: FontWeight.bold,
+//           fontSize: 14,
+//         ),
+//       ),
+//     ),
+//   );
+// }

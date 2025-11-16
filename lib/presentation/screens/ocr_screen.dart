@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:local_ocr/core/ocr_service.dart';
+import 'package:local_ocr/core/helper/ocr_service.dart';
 import 'package:local_ocr/presentation/widgets/scanning_indicator.dart';
 
 class OcrScreen extends StatefulWidget {

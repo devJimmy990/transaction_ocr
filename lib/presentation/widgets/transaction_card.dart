@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:local_ocr/cubit/transaction_ocr/transaction_ocr_cubit.dart';
-import 'package:local_ocr/model/transaction_ocr_model.dart';
+import 'package:local_ocr/core/extensions/date_time.dart';
+import 'package:local_ocr/cubit/transaction_ocr/transaction_cubit.dart';
+import 'package:local_ocr/model/transaction_model.dart';
 
 class TransactionOcrCard extends StatelessWidget {
-  final TransactionOcrModel transaction;
+  final TransactionModel transaction;
 
   const TransactionOcrCard(this.transaction, {super.key});
 
@@ -24,7 +25,7 @@ class TransactionOcrCard extends StatelessWidget {
         child: const Icon(Icons.delete, color: Colors.white, size: 30),
       ),
       onDismissed:
-          (_) => context.read<TransactionOcrCubit>().deleteTransaction(
+          (_) => context.read<TransactionCubit>().deleteTransaction(
             transaction.id,
           ),
       child: Card(
@@ -73,41 +74,40 @@ class TransactionOcrCard extends StatelessWidget {
 
                   Expanded(
                     child: Column(
+                      textDirection: TextDirection.rtl,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "${transaction.amount} جنيه",
+                          "${transaction.amount.toDouble()} جنيه",
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
                             color:
-                                transaction.type == "إستقبال"
+                                transaction.type == TransactionType.receive
                                     ? Colors.green
                                     : Colors.redAccent,
                           ),
                         ),
                         Text(
-                          transaction.type,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
+                          transaction.type == TransactionType.instapay
+                              ? "تحويل إنستاباى او بنك"
+                              : "تحويل ${transaction.type == TransactionType.receive ? "من" : "الى"} الإخرين",
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        Directionality(
+                          textDirection: TextDirection.rtl,
+                          child: Text(
+                            transaction.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(fontWeight: FontWeight.w500),
                           ),
                         ),
                         Text(
-                          transaction.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13,
-                          ),
-                        ),
-                        Text(
-                          transaction.date,
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
+                          transaction.date.toArabic(),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(color: Colors.grey),
                         ),
                       ],
                     ),
@@ -115,7 +115,7 @@ class TransactionOcrCard extends StatelessWidget {
 
                   IconButton(
                     onPressed: () {
-                      context.read<TransactionOcrCubit>().toggleReviewStatus(
+                      context.read<TransactionCubit>().toggleReviewStatus(
                         transaction.id,
                       );
                     },

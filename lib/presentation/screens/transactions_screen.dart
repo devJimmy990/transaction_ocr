@@ -1,20 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:local_ocr/core/service_locator.dart';
-import 'package:local_ocr/cubit/transaction_ocr/transaction_ocr_cubit.dart';
-import 'package:local_ocr/cubit/transaction_ocr/transaction_ocr_state.dart';
-import 'package:local_ocr/model/transaction_ocr_model.dart';
-import 'package:local_ocr/presentation/widgets/transaction_ocr_card.dart';
+import 'package:local_ocr/core/helper/service_locator.dart';
+import 'package:local_ocr/cubit/transaction_ocr/transaction_cubit.dart';
+import 'package:local_ocr/cubit/transaction_ocr/transaction_state.dart';
+import 'package:local_ocr/presentation/widgets/transaction_card.dart';
 
-class TransactionsOcrScreen extends StatefulWidget {
-  const TransactionsOcrScreen({super.key});
+class TransactionsScreen extends StatefulWidget {
+  const TransactionsScreen({super.key});
 
   @override
-  State<TransactionsOcrScreen> createState() => _TransactionsOcrScreenState();
+  State<TransactionsScreen> createState() => _TransactionsScreenState();
 }
 
-class _TransactionsOcrScreenState extends State<TransactionsOcrScreen> {
+class _TransactionsScreenState extends State<TransactionsScreen> {
   bool isSearching = false;
   int currentTabIndex = 0;
   final TextEditingController searchController = TextEditingController();
@@ -22,7 +21,7 @@ class _TransactionsOcrScreenState extends State<TransactionsOcrScreen> {
   @override
   void initState() {
     super.initState();
-    sl<TransactionOcrCubit>().loadTransactions();
+    sl<TransactionCubit>().loadTransactions();
   }
 
   @override
@@ -33,7 +32,7 @@ class _TransactionsOcrScreenState extends State<TransactionsOcrScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<TransactionOcrCubit, TransactionOcrState>(
+    return BlocConsumer<TransactionCubit, TransactionState>(
       listener: (context, state) {
         if (state.action == "deleted") {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -44,7 +43,7 @@ class _TransactionsOcrScreenState extends State<TransactionsOcrScreen> {
               backgroundColor: state.error != null ? Colors.red : Colors.orange,
             ),
           );
-          sl<TransactionOcrCubit>().resetStatus();
+          sl<TransactionCubit>().resetStatus();
         } else if (state.action == "deleted-all") {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -54,7 +53,7 @@ class _TransactionsOcrScreenState extends State<TransactionsOcrScreen> {
               backgroundColor: state.error != null ? Colors.red : Colors.orange,
             ),
           );
-          sl<TransactionOcrCubit>().resetStatus();
+          sl<TransactionCubit>().resetStatus();
         }
       },
       builder: (context, state) {
@@ -89,22 +88,20 @@ class _TransactionsOcrScreenState extends State<TransactionsOcrScreen> {
 
                   switch (index) {
                     case 0:
-                      sl<TransactionOcrCubit>().setFilter(
-                        TransactionFilter.all,
-                      );
+                      sl<TransactionCubit>().setFilter(TransactionFilter.all);
                       break;
                     case 1:
-                      sl<TransactionOcrCubit>().setFilter(
+                      sl<TransactionCubit>().setFilter(
                         TransactionFilter.reviewed,
                       );
                       break;
                     case 2:
-                      sl<TransactionOcrCubit>().setFilter(
+                      sl<TransactionCubit>().setFilter(
                         TransactionFilter.notReviewed,
                       );
                       break;
                     case 3:
-                      sl<TransactionOcrCubit>().setFilter(
+                      sl<TransactionCubit>().setFilter(
                         TransactionFilter.failed,
                       );
                       break;
@@ -157,7 +154,7 @@ class _TransactionsOcrScreenState extends State<TransactionsOcrScreen> {
                             ),
                       );
                       if (confirmed == true) {
-                        sl<TransactionOcrCubit>().deleteAllTransactions();
+                        sl<TransactionCubit>().deleteAllTransactions();
                       }
                     },
                   ),
@@ -169,64 +166,60 @@ class _TransactionsOcrScreenState extends State<TransactionsOcrScreen> {
                     ? const Center(child: CircularProgressIndicator())
                     : Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: BlocBuilder<
-                        TransactionOcrCubit,
-                        TransactionOcrState
-                      >(
+                      child: BlocBuilder<TransactionCubit, TransactionState>(
                         buildWhen:
                             (prev, curr) =>
                                 prev.transactions != curr.transactions ||
                                 prev.filter != curr.filter,
                         builder: (context, state) {
-                          List<TransactionOcrModel> filtered =
-                              state.transactions;
+                          // List<TransactionModel> filtered = state.transactions;
 
-                          if (state.filter == TransactionFilter.reviewed) {
-                            filtered =
-                                filtered
-                                    .where(
-                                      (tx) =>
-                                          tx.isReviewed &&
-                                          tx.status == 'success',
-                                    )
-                                    .toList();
-                          } else if (state.filter ==
-                              TransactionFilter.notReviewed) {
-                            filtered =
-                                filtered
-                                    .where(
-                                      (tx) =>
-                                          !tx.isReviewed &&
-                                          tx.status == 'success',
-                                    )
-                                    .toList();
-                          } else if (state.filter == TransactionFilter.failed) {
-                            filtered =
-                                filtered
-                                    .where((tx) => tx.status == 'failed')
-                                    .toList();
-                          } else if (state.filter == TransactionFilter.all) {
-                            filtered =
-                                filtered
-                                    .where((tx) => tx.status == 'success')
-                                    .toList();
-                          }
+                          // if (state.filter == TransactionFilter.reviewed) {
+                          //   filtered =
+                          //       filtered
+                          //           .where(
+                          //             (tx) =>
+                          //                 tx.isReviewed &&
+                          //                 tx.status == 'success',
+                          //           )
+                          //           .toList();
+                          // } else if (state.filter ==
+                          //     TransactionFilter.notReviewed) {
+                          //   filtered =
+                          //       filtered
+                          //           .where(
+                          //             (tx) =>
+                          //                 !tx.isReviewed &&
+                          //                 tx.status == 'success',
+                          //           )
+                          //           .toList();
+                          // } else if (state.filter == TransactionFilter.failed) {
+                          //   filtered =
+                          //       filtered
+                          //           .where((tx) => tx.status == 'failed')
+                          //           .toList();
+                          // } else if (state.filter == TransactionFilter.all) {
+                          //   filtered =
+                          //       filtered
+                          //           .where((tx) => tx.status == 'success')
+                          //           .toList();
+                          // }
 
-                          if (currentTabIndex == 0 &&
-                              isSearching &&
-                              searchController.text.isNotEmpty) {
-                            final query = searchController.text.trim();
-                            filtered =
-                                filtered
-                                    .where((tx) => tx.phone.contains(query))
-                                    .toList();
-                          }
+                          // if (currentTabIndex == 0 &&
+                          //     isSearching &&
+                          //     searchController.text.isNotEmpty) {
+                          //   final query = searchController.text.trim();
+                          //   filtered =
+                          //       filtered
+                          //           .where((tx) => tx.phone.contains(query))
+                          //           .toList();
+                          // }
 
-                          return filtered.isNotEmpty
+                          return state.transactions.isNotEmpty
                               ? ListView.builder(
-                                itemCount: filtered.length,
+                                itemCount: state.transactions.length,
                                 itemBuilder: (context, index) {
-                                  final tx = filtered[index];
+                                  final tx = state.transactions[index];
                                   return TransactionOcrCard(tx);
                                 },
                               )
