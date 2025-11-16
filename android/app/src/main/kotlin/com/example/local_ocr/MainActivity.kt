@@ -3,160 +3,129 @@ package com.example.local_ocr
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.PixelFormat
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.Image
+import android.media.ImageReader
+import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
-import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.provider.Settings
 import androidx.annotation.NonNull
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
 
 class MainActivity : FlutterActivity() {
+    private val CHANNEL = "screenshot_channel"
+    private val REQUEST_CODE = 1000
 
-    private val CHANNEL = "com.yourapp/screenshot"
-    private val REQUEST_MEDIA_PROJECTION = 1001
-    private val REQUEST_OVERLAY_PERMISSION = 1002
-
-    private var pendingResult: MethodChannel.Result? = null
-    private var screenshotCapture: ScreenshotCapture? = null
+    private var methodChannel: MethodChannel? = null
+    private var mediaProjection: MediaProjection? = null
+    private var resultCode: Int = 0
+    private var resultData: Intent? = null
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        val methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-
-        methodChannel.setMethodCallHandler { call, result ->
+        methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        methodChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
-
-                // 🔹 Ask user for screen-capture permission once
                 "requestMediaProjection" -> {
-                    pendingResult = result
-                    requestMediaProjection()
+                    requestScreenCapturePermission()
+                    result.success(true)
                 }
-
-                // 🔹 Take screenshot (no dialog each time)
                 "takeScreenshot" -> {
-                    if (ScreenshotCapture.resultData == null) {
-                        result.error("NO_PERMISSION", "MediaProjection not granted yet", null)
-                        return@setMethodCallHandler
-                    }
-
-                    if (screenshotCapture == null) {
-                        screenshotCapture = ScreenshotCapture(this) { path, success ->
-                            Handler(Looper.getMainLooper()).post {
-                                if (success) result.success(path)
-                                else result.error("CAPTURE_FAILED", "Failed to take screenshot", null)
-                            }
-                        }
-                    }
-
-                    screenshotCapture?.capture()
-                }
-
-                // 🔹 Release projection when session ends
-                "releaseProjection" -> {
-                    screenshotCapture?.release()
-                    screenshotCapture = null
-                    result.success(true)
-                }
-
-                // 🔹 Start overlay (floating button)
-                "startService" -> {
-                    if (checkOverlayPermission()) {
-                        val intent = Intent(this, OverlayService::class.java)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(intent)
-                        } else {
-                            startService(intent)
-                        }
-                        result.success(true)
+                    if (resultData != null) {
+                        captureScreen(result)
                     } else {
-                        requestOverlayPermission()
-                        result.success(false)
+                        result.error("NO_PERMISSION", "Screen capture not permitted", null)
                     }
                 }
-
-                "stopService" -> {
-                    stopService(Intent(this, OverlayService::class.java))
-                    result.success(true)
-                }
-
-                // 🔹 Update floating button stats
-                "updateSuccess" -> {
-                    val intent = Intent(this, OverlayService::class.java).apply {
-                        action = "UPDATE_SUCCESS"
-                    }
-                    startService(intent)
-                    result.success(true)
-                }
-
-                "updateFailed" -> {
-                    val intent = Intent(this, OverlayService::class.java).apply {
-                        action = "UPDATE_FAILED"
-                    }
-                    startService(intent)
-                    result.success(true)
-                }
-
                 else -> result.notImplemented()
             }
         }
-
-        // Make channel accessible to the OverlayService
-        OverlayService.methodChannel = methodChannel
     }
 
-    // ✅ Request MediaProjection permission (shows system dialog once)
-    private fun requestMediaProjection() {
+    private fun requestScreenCapturePermission() {
         val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val intent = projectionManager.createScreenCaptureIntent()
-        startActivityForResult(intent, REQUEST_MEDIA_PROJECTION)
-    }
-
-    private fun checkOverlayPermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(this)
-        } else true
-    }
-
-    private fun requestOverlayPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION)
-        }
+        startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_CODE)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-
-        when (requestCode) {
-            REQUEST_MEDIA_PROJECTION -> {
-                if (resultCode == Activity.RESULT_OK && data != null) {
-                    ScreenshotCapture.resultCode = resultCode
-                    ScreenshotCapture.resultData = data
-                    pendingResult?.success(true)
-                } else {
-                    pendingResult?.success(false)
-                }
-                pendingResult = null
-            }
-
-            REQUEST_OVERLAY_PERMISSION -> {
-                if (checkOverlayPermission()) {
-                    // You can now start overlay service safely
-                }
-            }
+        if (requestCode == REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
+            this.resultCode = resultCode
+            this.resultData = data
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        screenshotCapture?.release()
+    private fun captureScreen(result: MethodChannel.Result) {
+        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        mediaProjection = projectionManager.getMediaProjection(resultCode, resultData!!)
+
+        val metrics = resources.displayMetrics
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        val density = metrics.densityDpi
+
+        val imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+
+        val virtualDisplay = mediaProjection?.createVirtualDisplay(
+            "Screenshot",
+            width, height, density,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            imageReader.surface, null, null
+        )
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            val image = imageReader.acquireLatestImage()
+            if (image != null) {
+                val path = saveImage(image, width, height)
+                image.close()
+                virtualDisplay?.release()
+                imageReader.close()
+                mediaProjection?.stop()
+                result.success(path)
+            } else {
+                result.error("CAPTURE_FAILED", "Failed to capture", null)
+            }
+        }, 100)
+    }
+
+    private fun saveImage(image: Image, width: Int, height: Int): String {
+        val planes = image.planes
+        val buffer = planes[0].buffer
+        val pixelStride = planes[0].pixelStride
+        val rowStride = planes[0].rowStride
+        val rowPadding = rowStride - pixelStride * width
+
+        val bitmap = Bitmap.createBitmap(
+            width + rowPadding / pixelStride,
+            height,
+            Bitmap.Config.ARGB_8888
+        )
+        bitmap.copyPixelsFromBuffer(buffer)
+
+        val croppedBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
+
+        val dir = File(cacheDir, "screenshots")
+        if (!dir.exists()) dir.mkdirs()
+
+        val file = File(dir, "screenshot_${System.currentTimeMillis()}.png")
+        FileOutputStream(file).use {
+            croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+
+        bitmap.recycle()
+        croppedBitmap.recycle()
+
+        return file.absolutePath
     }
 }
