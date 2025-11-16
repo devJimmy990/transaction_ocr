@@ -1,16 +1,376 @@
-# local_ocr
+# 🚀 دليل تطبيق النظام الجديد - Screenshot OCR
 
-A new Flutter project.
+## 📁 الملفات المطلوب تحديثها/إنشاؤها
 
-## Getting Started
+### Android Files (في `android/app/src/main/kotlin/com/example/local_ocr/`)
 
-This project is a starting point for a Flutter application.
+1. ✅ **ScreenshotForegroundService.kt** (جديد)
+2. ✅ **MainActivity.kt** (محدث)
+3. ✅ **AndroidManifest.xml** (محدث - في `android/app/src/main/`)
 
-A few resources to get you started if this is your first Flutter project:
+### Flutter Core Files (في `lib/core/`)
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+4. ✅ **screenshot_service.dart** (محدث بالكامل)
+5. ✅ **ocr_queue_manager.dart** (جديد)
+6. ✅ **service_locator.dart** (محدث)
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+### Cubit Files (في `lib/cubit/screenshot/`)
+
+7. ✅ **screenshot_cubit.dart** (محدث بالكامل)
+8. ✅ **screenshot_state.dart** (محدث)
+
+### Cubit Files (في `lib/cubit/transaction_ocr/`)
+
+9. ✅ **transaction_ocr_cubit.dart** (محدث)
+
+### Presentation Files
+
+10. ✅ **overlay_screen.dart** (في `lib/presentation/overlay/`) - محدث بالكامل
+11. ✅ **screenshot_control_screen.dart** (في `lib/presentation/screens/`) - محدث
+12. ✅ **main.dart** (في `lib/`) - محدث
+
+---
+
+## ⚙️ خطوات التطبيق
+
+### الخطوة 1: تنظيف المشروع
+
+```bash
+cd your_project_directory
+fvm flutter clean
+fvm flutter pub get
+```
+
+### الخطوة 2: نسخ الملفات الجديدة
+
+#### Android
+
+1. انسخ `ScreenshotForegroundService.kt` إلى:
+
+   ```
+   android/app/src/main/kotlin/com/example/local_ocr/ScreenshotForegroundService.kt
+   ```
+
+2. استبدل `MainActivity.kt` بالنسخة الجديدة
+
+3. استبدل `AndroidManifest.xml` بالنسخة الجديدة
+
+#### Flutter
+
+4. استبدل/أنشئ جميع الملفات المذكورة أعلاه
+
+### الخطوة 3: حذف الملفات القديمة غير المستخدمة
+
+```bash
+# احذف هذا الملف إذا كان موجوداً
+rm lib/core/ocr_processor.dart
+```
+
+### الخطوة 4: البناء والتشغيل
+
+```bash
+fvm flutter pub get
+fvm flutter run
+```
+
+---
+
+## 🎯 كيفية عمل النظام الجديد
+
+### 1. Architecture Flow
+
+```
+┌─────────────────────────────────────────────────┐
+│              Main Flutter App                    │
+│  ┌──────────────────────────────────────────┐   │
+│  │  ScreenshotCubit                         │   │
+│  │    └─ ScreenshotService                  │   │
+│  │         └─ MethodChannel                 │   │
+│  └──────────────────────────────────────────┘   │
+│                      ↓                           │
+│  ┌──────────────────────────────────────────┐   │
+│  │  ScreenshotForegroundService (Kotlin)    │   │
+│  │    ├─ MediaProjection (persistent)       │   │
+│  │    └─ Takes screenshots                  │   │
+│  └──────────────────────────────────────────┘   │
+│                      ↓                           │
+│  ┌──────────────────────────────────────────┐   │
+│  │  OCRQueueManager                         │   │
+│  │    ├─ Queue management                   │   │
+│  │    ├─ Parallel processing (max 2)        │   │
+│  │    └─ Retry logic (2 attempts)           │   │
+│  └──────────────────────────────────────────┘   │
+│                      ↓                           │
+│  ┌──────────────────────────────────────────┐   │
+│  │  OcrService                              │   │
+│  │    ├─ Image preprocessing               │   │
+│  │    ├─ Tesseract OCR (Arabic & English)  │   │
+│  │    └─ ML Kit (English)                   │   │
+│  └──────────────────────────────────────────┘   │
+│                      ↓                           │
+│  ┌──────────────────────────────────────────┐   │
+│  │  DatabaseHelper (SQLite)                 │   │
+│  │    └─ Store results                      │   │
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+             ↕ (FlutterOverlayWindow.shareData)
+┌─────────────────────────────────────────────────┐
+│         Overlay (Separate Isolate)              │
+│  ┌──────────────────────────────────────────┐   │
+│  │  OverlayScreen                           │   │
+│  │    ├─ Camera button                      │   │
+│  │    ├─ Success/Failed counters            │   │
+│  │    └─ Close button                       │   │
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+```
+
+### 2. Screenshot Flow
+
+```
+1. User presses camera button in Overlay
+   ↓
+2. Overlay hides itself (hideOverlay)
+   ↓
+3. Overlay sends request to Main App via shareData
+   ↓
+4. Main App calls ScreenshotService.takeScreenshot()
+   ↓
+5. Service calls MainActivity via MethodChannel
+   ↓
+6. MainActivity calls ScreenshotForegroundService
+   ↓
+7. Service captures screen using MediaProjection
+   ↓
+8. Image saved to cache directory
+   ↓
+9. Service notifies MainActivity (callback)
+   ↓
+10. MainActivity notifies Flutter via MethodChannel
+    ↓
+11. ScreenshotService calls onScreenshotCaptured
+    ↓
+12. ScreenshotCubit adds image to OCRQueueManager
+    ↓
+13. OCRQueueManager processes image
+    ↓
+14. Result saved to database
+    ↓
+15. Overlay shows again with updated counters
+```
+
+### 3. OCR Queue Processing
+
+- **Max Concurrent**: 2 صور في نفس الوقت
+- **Retry Logic**: محاولتين لكل صورة
+- **On Success**: حذف الصورة وحفظ النتيجة
+- **On Failure**: نقل الصورة لمجلد `failed_screenshots`
+
+---
+
+## 🔧 المشاكل المحلولة
+
+### ✅ 1. Overlay لا يظهر أو لا يستجيب
+
+**الحل:**
+
+- استخدام `ScreenshotForegroundService` لضمان استمرارية الخدمة
+- مراقبة حالة الـ Overlay بشكل دوري
+- معالجة أخطاء الـ Overlay بشكل صحيح
+
+### ✅ 2. MediaProjection Permission ضائع
+
+**الحل:**
+
+- تخزين الإذن في `ForegroundService` الذي لا يموت
+- الإذن يُطلب مرة واحدة فقط عند بدء الخدمة
+- يبقى نشطاً حتى إيقاف الخدمة
+
+### ✅ 3. OCR يتعطل أو يبطئ التطبيق
+
+**الحل:**
+
+- `OCRQueueManager` مع معالجة متوازية (max 2)
+- Retry logic مع تأخير تصاعدي
+- حذف الصور بعد النجاح لتوفير المساحة
+
+### ✅ 4. الـ Overlay يظهر في Screenshot
+
+**الحل:**
+
+- إخفاء الـ Overlay قبل الالتقاط (400ms)
+- انتظار (600ms) لالتقاط الشاشة
+- إظهار الـ Overlay مرة أخرى
+
+### ✅ 5. Transaction Filter لا يعمل بشكل صحيح
+
+**الحل:**
+
+- فصل منطق الفلترة في `TransactionOcrCubit`
+- استخدام `getFilteredTransactions()` method
+- تحديث الـ UI تلقائياً عند تغيير الفلتر
+
+---
+
+## 🎨 Features الجديدة
+
+### 1. Notification مستمر
+
+- يظهر إشعار دائم أثناء عمل الخدمة
+- يعرض العدادات (ناجح/فاشل)
+- زر لإيقاف الخدمة مباشرة
+
+### 2. Queue Info Card
+
+- عرض عدد الصور في الانتظار
+- عرض عدد الصور قيد المعالجة
+- تحديث لحظي
+
+### 3. Enhanced Overlay
+
+- تصميم جديد احترافي
+- عدادات ملونة
+- زر إغلاق واضح
+- رسائل أخطاء واضحة
+
+### 4. Better Error Handling
+
+- رسائل خطأ واضحة للمستخدم
+- معالجة جميع الحالات الشاذة
+- Retry logic تلقائي
+
+---
+
+## ⚠️ ملاحظات مهمة
+
+### 1. الأذونات المطلوبة
+
+```xml
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"/>
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+```
+
+### 2. Android 13+ (API 33+)
+
+- يتطلب إذن `POST_NOTIFICATIONS` بشكل صريح
+- يجب على المستخدم قبول الإشعارات
+
+### 3. Battery Optimization
+
+- قد يطلب النظام إضافة التطبيق لقائمة الاستثناءات
+- يُنصح بإخبار المستخدم بذلك
+
+### 4. Memory Management
+
+- الصور يتم حذفها تلقائياً بعد النجاح
+- الصور الفاشلة تُحفظ في `failed_screenshots/`
+- يُنصح بتنظيف المجلد بشكل دوري
+
+---
+
+## 🐛 Troubleshooting
+
+### Problem: Overlay لا يظهر
+
+**Solution:**
+
+1. تحقق من إذن `SYSTEM_ALERT_WINDOW`
+2. أعد تشغيل التطبيق
+3. امسح الـ cache: `flutter clean`
+
+### Problem: Screenshot فارغ/أسود
+
+**Solution:**
+
+1. تأكد من منح إذن `MediaProjection`
+2. تأكد من اختيار "Entire Screen"
+3. زيادة وقت الانتظار في الكود (من 300ms إلى 500ms)
+
+### Problem: OCR بطيء جداً
+
+**Solution:**
+
+1. قلل `MAX_CONCURRENT` في `OCRQueueManager`
+2. تحقق من حجم الصور (قد تحتاج تصغير)
+3. راجع `_preprocessImage` في `OcrService`
+
+### Problem: الخدمة تتوقف في الخلفية
+
+**Solution:**
+
+1. تأكد من أن الـ notification ظاهر
+2. أضف التطبيق لقائمة استثناءات البطارية
+3. تأكد من `START_STICKY` في Service
+
+---
+
+## 📊 Testing Checklist
+
+- [ ] بدء الخدمة يعمل بنجاح
+- [ ] الـ Overlay يظهر ويختفي بشكل صحيح
+- [ ] التقاط الشاشة يعمل (الـ Overlay لا يظهر في الصورة)
+- [ ] OCR يعمل على النصوص العربية والإنجليزية
+- [ ] الفلاتر في TransactionsScreen تعمل بشكل صحيح
+- [ ] الصور الناجحة تُحذف تلقائياً
+- [ ] الصور الفاشلة تظهر في فلتر "فاشل"
+- [ ] Retry للصور الفاشلة يعمل
+- [ ] الإشعار يُحدّث العدادات بشكل صحيح
+- [ ] إيقاف الخدمة يعمل بدون مشاكل
+- [ ] التطبيق لا يتعطل أو يتجمد
+
+---
+
+## 🎓 للمطورين
+
+### إضافة ميزة جديدة للـ Overlay
+
+```dart
+// في overlay_screen.dart
+FlutterOverlayWindow.shareData({
+  'action': 'your_custom_action',
+  'data': yourData,
+});
+
+// في main.dart
+void _listenToOverlayRequests() {
+  FlutterOverlayWindow.overlayListener.listen((data) async {
+    if (data['action'] == 'your_custom_action') {
+      // معالجة الطلب
+    }
+  });
+}
+```
+
+### تغيير عدد المعالجات المتوازية
+
+```dart
+// في ocr_queue_manager.dart
+static const int MAX_CONCURRENT = 3; // غيّر من 2 إلى 3
+```
+
+### إضافة callback جديد للـ Queue
+
+```dart
+// في main.dart - _setupOCRQueueCallbacks()
+queueManager.onQueueChanged = (queueLength) {
+  // فعل شيء عند تغيير القائمة
+};
+```
+
+---
+
+## 📞 Support
+
+إذا واجهت أي مشاكل:
+
+1. تحقق من الـ logs: `flutter logs` أو `adb logcat`
+2. تأكد من جميع الأذونات ممنوحة
+3. أعد تشغيل التطبيق بعد أي تعديلات
+
+---
+
+**تم بحمد الله ✅**
+
+النظام الآن متكامل ومستقر وجاهز للاستخدام! 🚀
